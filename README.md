@@ -14,9 +14,9 @@ registro de síntomas antes y después.
 
 ## Cómo usarlo
 
-1. Descargar `index.html` (o clonar el repositorio) y abrirlo con doble clic en
-   Chrome, Edge, Firefox o Safari. No necesita instalación ni servidor; solo
-   usa internet para cargar la tipografía.
+1. Abrir <https://ingarmandotirado.github.io/simulador-optocinetico-mdds/> en
+   Chrome, Edge, Firefox o Safari. También funciona sin conexión: descargar
+   `index.html` y abrirlo con doble clic.
 2. Conectar la computadora al televisor por HDMI y mover la ventana del
    navegador a esa pantalla.
 3. Capturar el ancho de la imagen y la distancia de los ojos a la pantalla.
