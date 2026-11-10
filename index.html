@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Simulador Optocinético MdDS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrumento clínico de una columna; ajustes a la izquierda, lectura calculada a la derecha; el estímulo ocupa toda la pantalla aparte. */
+:root{
+  --bg:#f1f4f3; --surface:#ffffff; --ink:#17232b; --muted:#56666e; --line:#d3dbdb;
+  --accent:#0b6b78; --accent-ink:#ffffff; --accent-soft:#e0f0f2;
+  --warn-bg:#fff3d1; --warn-ink:#6a4900; --danger:#a3271f; --ok:#1c6b40;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f171b; --surface:#17232a; --ink:#e5edef; --muted:#9bafb6; --line:#2a3a41;
+  --accent:#4fc1d0; --accent-ink:#05272c; --accent-soft:#143239;
+  --warn-bg:#3a2e0c; --warn-ink:#ffd87a; --danger:#ff8f85; --ok:#6fd39b; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f171b; --surface:#17232a; --ink:#e5edef; --muted:#9bafb6; --line:#2a3a41;
+  --accent:#4fc1d0; --accent-ink:#05272c; --accent-soft:#143239;
+  --warn-bg:#3a2e0c; --warn-ink:#ffd87a; --danger:#ff8f85; --ok:#6fd39b; color-scheme:dark }
+
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-block:28px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:28px}
+h1{font-size:1.9rem;line-height:1.15;font-weight:600;margin:0;text-wrap:balance}
+h2{font-size:1.2rem;font-weight:600;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch}
+.lead{color:var(--muted)}
+.eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+header{display:flex;flex-direction:column;gap:10px}
+.notice{background:var(--warn-bg);color:var(--warn-ink);border-radius:6px;padding:14px 16px}
+.notice p{max-width:none}
+section{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line);padding-top:22px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label,.legend{font-weight:500;font-size:.92rem}
+.hint{font-size:.82rem;color:var(--muted)}
+input[type=number],select{font:inherit;font-family:var(--mono);padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);width:100%;max-width:220px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg label{border:1px solid var(--line);border-radius:4px;padding:7px 12px;cursor:pointer;font-family:var(--mono);font-size:.9rem;background:var(--bg)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked+span{font-weight:500}
+.seg label:has(input:checked){background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:500;border-radius:4px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 16px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.danger{color:var(--danger);border-color:var(--danger)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.checks{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.checks.panel{padding:16px}
+.checks label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checks label span{min-width:0}
+.checks input{margin-top:4px;width:18px;height:18px;accent-color:var(--accent);flex:none}
+.readout{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.92rem;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+.readout dt{color:var(--muted)}
+.readout dd{margin:0}
+.chip{display:inline-block;font-family:var(--mono);font-size:.8rem;border-radius:999px;padding:2px 10px;border:1px solid currentColor}
+.chip.ok{color:var(--ok)} .chip.mid{color:var(--warn-ink);background:var(--warn-bg);border-color:transparent} .chip.bad{color:var(--danger)}
+.vas{display:flex;flex-direction:column;gap:6px}
+.vas output{font-family:var(--mono);font-size:1.5rem;font-variant-numeric:tabular-nums}
+.vas .ends{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted)}
+.msg{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 4px 4px 0}
+.msg.alert{border-color:var(--danger)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+a{color:var(--accent)}
+ol.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+/* estímulo a pantalla completa */
+#stim{position:fixed;inset:0;z-index:50;background:#808080;cursor:none;touch-action:none}
+#stim canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));background:rgba(0,0,0,.78);color:#fff;font-family:var(--mono);font-size:.85rem;padding:6px 12px;border-radius:4px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="eyebrow">Readaptación vestíbulo-ocular · protocolo de Dai</span>
+  <h1>Simulador optocinético MdDS</h1>
+  <p class="lead">Reproduce en un televisor o monitor grande los parámetros publicados del tratamiento: franjas en movimiento a velocidad angular constante, metrónomo para la inclinación de cabeza, bloques cronometrados y registro de síntomas antes y después.</p>
+  <div class="notice"><p><strong>Herramienta de apoyo, no un tratamiento validado.</strong> Las mejorías publicadas (64% a 78% inmediatas) se lograron en clínica, con un terapeuta moviendo la cabeza de la paciente y franjas que llenan todo el campo visual. No hay datos publicados de eficacia ni de seguridad de versiones caseras. Úsalo con el visto bueno de su médico y, de ser posible, con su terapeuta vestibular en videollamada.</p></div>
+</header>
+
+<section aria-labelledby="h-seg">
+  <h2 id="h-seg">1 · Antes de empezar</h2>
+  <p>Los botones de inicio se activan al marcar las cinco condiciones. Se piden de nuevo en cada visita.</p>
+  <ul class="checks panel">
+    <li><label><input type="checkbox" id="chk-embarazo" class="gate"><span>No estoy embarazada y mi médico autorizó este ejercicio después del parto.</span></label></li>
+    <li><label><input type="checkbox" id="chk-sintomas" class="gate"><span>Hoy tengo síntomas activos de MdDS (balanceo, vaivén, rebote o jalón). Sin síntomas no se usa: no habría cómo elegir la dirección ni medir la respuesta.</span></label></li>
+    <li><label><input type="checkbox" id="chk-silla" class="gate"><span>Estoy sentada en una silla firme que no gira, y hay otra persona conmigo.</span></label></li>
+    <li><label><input type="checkbox" id="chk-epilepsia" class="gate"><span>No tengo epilepsia ni antecedentes de crisis provocadas por luces o patrones.</span></label></li>
+    <li><label><input type="checkbox" id="chk-alto" class="gate"><span>Sé cuándo detenerme: náusea, dolor de cabeza, o balanceo que sube 2 puntos o más. Cualquier tecla o toque detiene las franjas.</span></label></li>
+  </ul>
+  <p class="hint">Si le interesa el ensayo clínico de Mount Sinai (NCT05460520), pregunte antes de usar este simulador: el ensayo excluye a quien ya recibió readaptación vestíbulo-ocular.</p>
+</section>
+
+<section aria-labelledby="h-cfg">
+  <h2 id="h-cfg">2 · Ajustes del estímulo</h2>
+  <div class="cols">
+    <div class="panel">
+      <span class="legend">Pantalla</span>
+      <div class="field"><label for="screenW">Ancho de la imagen (cm)</label>
+        <input type="number" id="screenW" min="20" max="400" step="1">
+        <span class="hint">Un televisor de 55 pulgadas mide unos 121 cm de ancho; uno de 43, unos 95 cm.</span></div>
+      <div class="field"><label for="dist">Distancia de los ojos a la pantalla (cm)</label>
+        <input type="number" id="dist" min="20" max="400" step="1">
+        <span class="hint">Entre más cerca, más campo visual cubren las franjas.</span></div>
+      <dl class="readout" id="geo"></dl>
+      <span class="hint" id="geo-hint"></span>
+    </div>
+    <div class="panel">
+      <span class="legend">Franjas</span>
+      <div class="field"><span class="legend" id="lbl-dir">Dirección del movimiento</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-dir">
+          <label><input type="radio" name="dir" id="dir-L" value="L"><span>← izquierda</span></label>
+          <label><input type="radio" name="dir" id="dir-R" value="R"><span>derecha →</span></label>
+          <label><input type="radio" name="dir" id="dir-U" value="U"><span>↑ arriba</span></label>
+          <label><input type="radio" name="dir" id="dir-D" value="D"><span>abajo ↓</span></label>
+        </div></div>
+      <div class="field"><label for="speed">Velocidad (grados por segundo)</label>
+        <select id="speed"><option value="5">5 °/s</option><option value="10">10 °/s</option><option value="15">15 °/s</option><option value="20">20 °/s</option></select>
+        <span class="hint">10 °/s en Dai 2014 y en la guía de Amberes 2024; 5 °/s en el piloto con visor de 2020.</span></div>
+      <div class="field"><label for="stripeW">Ancho de cada franja (grados)</label>
+        <input type="number" id="stripeW" min="1" max="15" step="0.1">
+        <span class="hint">1.4° en Dai 2014. Si resulta incómodo, pruebe franjas más anchas.</span></div>
+      <div class="field"><label for="contrast">Contraste: <span id="contrast-out"></span>%</label>
+        <input type="range" id="contrast" min="40" max="100" step="5"></div>
+    </div>
+    <div class="panel">
+      <span class="legend">Inclinación de cabeza</span>
+      <div class="field"><label for="freq">Frecuencia (Hz)</label>
+        <input type="number" id="freq" min="0.05" max="1" step="0.001">
+        <div class="row"><button type="button" id="f-167">0.167 fija (Amberes)</button><button type="button" id="f-200">0.2 típica (Dai)</button></div>
+        <span class="hint">Dai usa la frecuencia del balanceo de cada paciente (promedio 0.2 Hz). Amberes usa 0.167 Hz para todas: un ciclo cada 6 segundos.</span></div>
+      <div class="field"><span class="legend">Medir su propia frecuencia</span>
+        <span class="hint">De pie o sentada, toque el botón cada vez que sienta que el balanceo llega al mismo extremo. Mínimo 6 toques.</span>
+        <div class="row"><button type="button" id="tap">Marcar extremo</button><span class="readout" id="tap-out" style="display:inline">sin datos</span><button type="button" id="tap-use" hidden>Usar esta frecuencia</button></div></div>
+      <div class="row"><label><input type="checkbox" id="sound"> Metrónomo sonoro</label><label><input type="checkbox" id="cue"> Indicador visual de inclinación</label></div>
+      <div class="field"><label for="blockMin">Duración del bloque (minutos)</label>
+        <select id="blockMin"><option value="1">1</option><option value="2">2</option><option value="4">4</option><option value="6">6</option></select></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-dir">
+  <h2 id="h-dir">3 · Elegir la dirección</h2>
+  <p>La dirección equivocada puede aumentar los síntomas. En clínica se decide con la prueba de marcha de Fukuda y con lo que la paciente percibe; después se confirma con una exposición corta.</p>
+  <ol class="steps">
+    <li><strong>Prueba de Fukuda.</strong> Con otra persona al lado para evitar caídas: ojos cerrados, brazos extendidos al frente, marchar en el mismo lugar durante 45 segundos. Anotar hacia dónde giró o se desplazó. Un giro mayor de 20° cuenta como positivo.</li>
+    <li><strong>Leer la tabla</strong> y seleccionar la dirección en los ajustes.</li>
+    <li><strong>Prueba de 30 segundos.</strong> Si los síntomas suben o no cambian, invertir la dirección y repetir.</li>
+  </ol>
+  <div class="scroll"><table>
+    <thead><tr><th>Lo que se observa</th><th>Dirección de las franjas</th></tr></thead>
+    <tbody>
+      <tr><td>En Fukuda gira a la izquierda</td><td>Derecha</td></tr>
+      <tr><td>En Fukuda gira a la derecha</td><td>Izquierda</td></tr>
+      <tr><td>En Fukuda se desplaza hacia adelante</td><td>Abajo</td></tr>
+      <tr><td>Fukuda sin desviación; siente vaivén de lado a lado</td><td>Izquierda o derecha, según la prueba de 30 segundos</td></tr>
+      <tr><td>Fukuda sin desviación; siente balanceo adelante-atrás o rebote</td><td>Abajo o arriba, según la prueba de 30 segundos</td></tr>
+      <tr><td>Jalón hacia un lado</td><td>Contraria al jalón</td></tr>
+      <tr><td>Jalón hacia atrás, piso blando o cuerpo ligero</td><td>Arriba</td></tr>
+      <tr><td>Jalón hacia adelante o cuerpo pesado</td><td>Abajo</td></tr>
+    </tbody></table></div>
+  <div class="row"><button type="button" class="primary start" id="start-test" disabled>Iniciar prueba de 30 segundos</button><button type="button" id="invert">Invertir dirección</button></div>
+</section>
+
+<section aria-labelledby="h-ses">
+  <h2 id="h-ses">4 · Sesión</h2>
+  <p>Esquema estándar de Amberes: 3 días seguidos; cada día una sesión por la mañana y otra por la tarde; cada sesión son 2 bloques de 4 minutos. <span id="today" class="chip ok"></span></p>
+  <ol class="steps">
+    <li>La paciente mira al frente y deja que los ojos sigan las franjas sin esfuerzo. No fija la vista en un punto.</li>
+    <li>La otra persona le inclina la cabeza de hombro a hombro, unos 20° a cada lado, siguiendo la escala: la nota más aguda es la inclinación máxima a la derecha y la más grave, a la izquierda. En los estudios la cabeza siempre la movió el terapeuta; inclinarla ella sola es una desviación del protocolo.</li>
+    <li>Al terminar, las franjas se desvanecen. Quedarse sentada un minuto antes de calificar.</li>
+  </ol>
+  <div class="cols">
+    <div class="panel vas"><label for="pre">Balanceo ahora, antes del bloque</label>
+      <output id="pre-out" for="pre"></output><input type="range" id="pre" min="0" max="10" step="0.5" value="5">
+      <div class="ends"><span>0 · nada</span><span>10 · el peor imaginable</span></div>
+      <div class="row"><button type="button" class="primary start" id="start-block" disabled>Iniciar bloque</button></div>
+    </div>
+    <div class="panel vas" id="post-panel" hidden><label for="post">Balanceo ahora, después de <span id="post-kind"></span></label>
+      <output id="post-out" for="post"></output><input type="range" id="post" min="0" max="10" step="0.5" value="5">
+      <div class="ends"><span>0 · nada</span><span>10 · el peor imaginable</span></div>
+      <div class="row"><button type="button" class="primary" id="save">Guardar resultado</button><button type="button" id="discard">Descartar</button></div>
+    </div>
+  </div>
+  <div id="advice" class="msg" hidden></div>
+</section>
+
+<section aria-labelledby="h-log">
+  <h2 id="h-log">5 · Registro</h2>
+  <p class="hint">Se guarda solo en este navegador y en este equipo. Copie los datos para compartirlos con el médico.</p>
+  <div class="scroll"><table id="log">
+    <thead><tr><th>Fecha y hora</th><th>Tipo</th><th>Dirección</th><th class="num">°/s</th><th class="num">Hz</th><th class="num">Duración</th><th class="num">Antes</th><th class="num">Después</th><th class="num">Cambio</th></tr></thead>
+    <tbody></tbody></table></div>
+  <div class="row"><button type="button" id="copy">Copiar como CSV</button><button type="button" class="danger" id="clear">Borrar registro</button><span id="log-msg" class="hint" role="status"></span></div>
+  <textarea id="csv" hidden rows="4" style="width:100%;font-family:var(--mono);font-size:.8rem" aria-label="Registro en CSV"></textarea>
+</section>
+
+<section aria-labelledby="h-ref">
+  <h2 id="h-ref">Parámetros publicados</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Parámetro</th><th>Valor</th><th>Fuente</th></tr></thead>
+    <tbody>
+      <tr><td>Velocidad de las franjas</td><td>10 °/s, ajustable según respuesta</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4097942/">Dai 2014</a>; <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10985174/">Schoenmaekers 2024</a></td></tr>
+      <tr><td>Velocidad con visor</td><td>5 °/s, campo de ±45°</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7461907/">Yakushin 2020</a></td></tr>
+      <tr><td>Franjas</td><td>Blancas y negras de 1.4°, en una sala circular de 1.8 m que llena el campo visual</td><td>Dai 2014</td></tr>
+      <tr><td>Inclinación de cabeza</td><td>±20° de hombro a hombro, movida por el terapeuta</td><td>Dai 2014; Schoenmaekers 2024</td></tr>
+      <tr><td>Frecuencia de la cabeza</td><td>La del balanceo de la paciente (0.2 ± 0.1 Hz) o 0.167 Hz fija</td><td>Dai 2014; Schoenmaekers 2024</td></tr>
+      <tr><td>Metrónomo</td><td>Escala de ocho notas ascendente y descendente; extremos en la nota más aguda y la más grave</td><td>Yakushin 2020</td></tr>
+      <tr><td>Bloques</td><td>2 bloques de 4 minutos, mañana y tarde, 3 días seguidos</td><td>Schoenmaekers 2024</td></tr>
+      <tr><td>Dirección equivocada</td><td>Si los síntomas aumentan o no hay respuesta, se invierte</td><td>Dai 2014; <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5418223/">Dai 2017</a></td></tr>
+      <tr><td>Después del tratamiento</td><td>Evitar recaídas las primeras 2 semanas: viajes largos en auto o avión, barcos, estrés intenso</td><td>Dai 2017</td></tr>
+    </tbody></table></div>
+  <p class="hint">Diferencias con la clínica: una pantalla plana cubre menos campo visual que la sala circular, y nadie verifica aquí el ángulo ni el ritmo de la cabeza. Este simulador compensa la pantalla plana dibujando las franjas en perspectiva, de modo que su velocidad angular es la misma en el centro y en los bordes para quien se sienta a la distancia indicada.</p>
+</section>
+</div>
+
+<div id="stim" hidden><canvas id="cv"></canvas><div id="hud"></div></div>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var KEY = 'simulador-okn-mdds-v1';
+  var DEFAULTS = { screenW:121, dist:60, dir:'L', speed:10, stripeW:1.4, contrast:100, freq:0.167, sound:true, cue:true, blockMin:4 };
+  var DIR_NAME = { L:'izquierda', R:'derecha', U:'arriba', D:'abajo' };
+  var OPPOSITE = { L:'R', R:'L', U:'D', D:'U' };
+  var NOTES = [220.00,246.94,261.63,293.66,329.63,369.99,415.30,440.00]; // A B C D E F# G# A (Yakushin 2020)
+
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY) || 'null') || {}; } catch(e){ return {}; } }
+  function persist(){ try { localStorage.setItem(KEY, JSON.stringify({cfg:cfg, log:log})); } catch(e){} }
+  var saved = load();
+  var cfg = Object.assign({}, DEFAULTS, saved.cfg || {});
+  var log = Array.isArray(saved.log) ? saved.log : [];
+
+  /* ---------- ajustes ---------- */
+  function num(v, lo, hi, fb){ v = parseFloat(v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fb; }
+  function fillForm(){
+    $('screenW').value = cfg.screenW; $('dist').value = cfg.dist; $('speed').value = String(cfg.speed);
+    $('stripeW').value = cfg.stripeW; $('contrast').value = cfg.contrast; $('freq').value = cfg.freq;
+    $('sound').checked = !!cfg.sound; $('cue').checked = !!cfg.cue; $('blockMin').value = String(cfg.blockMin);
+    var r = $('dir-' + cfg.dir); if (r) r.checked = true;
+    $('contrast-out').textContent = cfg.contrast;
+  }
+  function readForm(){
+    cfg.screenW = num($('screenW').value, 20, 400, DEFAULTS.screenW);
+    cfg.dist = num($('dist').value, 20, 400, DEFAULTS.dist);
+    cfg.speed = num($('speed').value, 5, 20, 10);
+    cfg.stripeW = num($('stripeW').value, 1, 15, 1.4);
+    cfg.contrast = num($('contrast').value, 40, 100, 100);
+    cfg.freq = num($('freq').value, 0.05, 1, 0.167);
+    cfg.sound = $('sound').checked; cfg.cue = $('cue').checked;
+    cfg.blockMin = num($('blockMin').value, 1, 6, 4);
+    var d = document.querySelector('input[name=dir]:checked'); if (d) cfg.dir = d.value;
+    $('contrast-out').textContent = cfg.contrast;
+    renderGeo(); persist();
+  }
+  function deg(r){ return r * 180 / Math.PI; }
+  function renderGeo(){
+    var hx = deg(Math.atan((cfg.screenW / 2) / cfg.dist));
+    var hy = deg(Math.atan((cfg.screenW * 9 / 16 / 2) / cfg.dist));
+    var cls = hx >= 45 ? 'ok' : hx >= 30 ? 'mid' : 'bad';
+    var txt = hx >= 45 ? 'adecuado' : hx >= 30 ? 'bajo' : 'insuficiente';
+    var period = (1 / cfg.freq);
+    $('geo-hint').textContent = hx >= 45 ? 'El campo iguala o supera el ±45° del visor del estudio piloto.' : 'El estudio piloto usó ±45°. Acérquese a la pantalla o use una más grande.';
+    $('geo').innerHTML =
+      '<dt>Campo horizontal</dt><dd>±' + hx.toFixed(0) + '° <span class="chip ' + cls + '">' + txt + '</span></dd>' +
+      '<dt>Campo vertical</dt><dd>±' + hy.toFixed(0) + '° (pantalla 16:9)</dd>' +
+      '<dt>Ciclo de cabeza</dt><dd>' + period.toFixed(1) + ' s por ciclo a ' + cfg.freq.toFixed(3) + ' Hz</dd>' +
+      '<dt>Franjas por segundo</dt><dd>' + (cfg.speed / (2 * cfg.stripeW)).toFixed(1) + ' pares blanco-negro</dd>';
+  }
+  ['screenW','dist','speed','stripeW','contrast','freq','sound','cue','blockMin','dir-L','dir-R','dir-U','dir-D'].forEach(function(id){
+    $(id).addEventListener('input', readForm); $(id).addEventListener('change', readForm);
+  });
+  $('f-167').addEventListener('click', function(){ $('freq').value = 0.167; readForm(); });
+  $('f-200').addEventListener('click', function(){ $('freq').value = 0.2; readForm(); });
+  $('invert').addEventListener('click', function(){ $('dir-' + OPPOSITE[cfg.dir]).checked = true; readForm(); });
+
+  /* ---------- medir frecuencia propia ---------- */
+  var taps = [], tapHz = null;
+  $('tap').addEventListener('click', function(){
+    var now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > 15000) taps = [];
+    taps.push(now); if (taps.length > 9) taps.shift();
+    if (taps.length < 6) { $('tap-out').textContent = taps.length + ' de 6 toques'; $('tap-use').hidden = true; return; }
+    var span = (taps[taps.length - 1] - taps[0]) / 1000;
+    tapHz = Math.min(1, Math.max(0.05, (taps.length - 1) / span));
+    $('tap-out').textContent = tapHz.toFixed(3) + ' Hz (un ciclo cada ' + (1 / tapHz).toFixed(1) + ' s)';
+    $('tap-use').hidden = false;
+  });
+  $('tap-use').addEventListener('click', function(){ if (tapHz) { $('freq').value = tapHz.toFixed(3); readForm(); } });
+
+  /* ---------- condiciones de seguridad ---------- */
+  var gates = Array.prototype.slice.call(document.querySelectorAll('.gate'));
+  function gateOk(){ return gates.every(function(g){ return g.checked; }); }
+  function syncGate(){ var ok = gateOk() && !pending; document.querySelectorAll('.start').forEach(function(b){ b.disabled = !ok; }); }
+  gates.forEach(function(g){ g.addEventListener('change', syncGate); });
+
+  /* ---------- escalas 0 a 10 ---------- */
+  function bindVas(id){ var el = $(id), out = $(id + '-out'); var f = function(){ out.textContent = parseFloat(el.value).toFixed(1); }; el.addEventListener('input', f); f(); }
+  bindVas('pre'); bindVas('post');
+
+  /* ---------- estímulo ---------- */
+  var stim = $('stim'), cv = $('cv'), ctx = cv.getContext('2d'), hud = $('hud');
+  var run = null, pending = null, audio = null, wake = null;
+
+  function sizeCanvas(){
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.max(1, Math.round(cv.clientWidth * dpr)); cv.height = Math.max(1, Math.round(cv.clientHeight * dpr));
+  }
+  function tone(freq){
+    if (!audio) return;
+    try {
+      var t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + 0.35);
+    } catch(e){}
+  }
+  function start(kind){
+    if (run || pending || !gateOk()) return;
+    readForm();
+    run = { kind:kind, dur:(kind === 'prueba' ? 30 : cfg.blockMin * 60), t0:null, note:-1, pre:parseFloat($('pre').value), fs:false, ending:false };
+    stim.hidden = false; sizeCanvas();
+    if (cfg.sound) { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch(e){ audio = null; } }
+    try { var p = stim.requestFullscreen && stim.requestFullscreen(); if (p && p.then) p.then(function(){ if (run) { run.fs = true; sizeCanvas(); } }).catch(function(){}); } catch(e){}
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function(w){ wake = w; }).catch(function(){}); } catch(e){}
+    requestAnimationFrame(frame);
+  }
+  function frame(now){
+    if (!run) return;
+    if (run.t0 === null) run.t0 = now;
+    var t = (now - run.t0) / 1000, left = run.dur - t;
+    if (left <= 0) { finish(false); return; }
+    var fade = Math.min(1, t / 1.5, left / 1.5);
+    draw(t, fade);
+    // metrónomo: c = fracción del ciclo; 0 = extremo izquierdo, 0.5 = extremo derecho; arranca erguida, yendo a la derecha
+    var c = (0.25 + cfg.freq * t) % 1, tri = c < 0.5 ? 2 * c : 2 * (1 - c), n = Math.round(7 * tri);
+    if (n !== run.note) { run.note = n; if (cfg.sound) tone(NOTES[n]); }
+    var m = Math.floor(left / 60), s = Math.ceil(left % 60); if (s === 60) { m += 1; s = 0; }
+    hud.textContent = (run.kind === 'prueba' ? 'Prueba ' : 'Bloque ') + m + ':' + (s < 10 ? '0' : '') + s + ' · cualquier tecla o toque detiene';
+    requestAnimationFrame(frame);
+  }
+  function draw(t, fade){
+    var w = cv.width, h = cv.height, c = (cfg.contrast / 100) * fade;
+    var white = Math.round(128 + 127 * c), black = Math.round(128 - 128 * c);
+    ctx.fillStyle = 'rgb(' + white + ',' + white + ',' + white + ')'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgb(' + black + ',' + black + ',' + black + ')';
+    var horiz = cfg.dir === 'L' || cfg.dir === 'R', sign = (cfg.dir === 'R' || cfg.dir === 'D') ? 1 : -1;
+    var Dpx = cfg.dist * (w / cfg.screenW);           // distancia del ojo, en pixeles de la imagen
+    var half = horiz ? w / 2 : h / 2, thMax = deg(Math.atan(half / Dpx));
+    var per = 2 * cfg.stripeW, phase = sign * cfg.speed * t, rad = Math.PI / 180;
+    for (var k = Math.floor((-thMax - phase) / per) - 1; ; k++) {
+      var a0 = k * per + phase, a1 = a0 + cfg.stripeW;
+      if (a0 > thMax) break; if (a1 < -thMax) continue;
+      var p0 = half + Dpx * Math.tan(Math.max(a0, -thMax - 1) * rad), p1 = half + Dpx * Math.tan(Math.min(a1, thMax + 1) * rad);
+      if (horiz) ctx.fillRect(p0, 0, p1 - p0, h); else ctx.fillRect(0, p0, w, p1 - p0);
+    }
+    if (cfg.cue) {
+      var ang = -20 * Math.cos(2 * Math.PI * (0.25 + cfg.freq * t)) * rad, u = Math.max(40, Math.min(w, h) * 0.07), cx = w / 2, cy = h - u * 0.5;
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.8 * fade) + ')';
+      ctx.beginPath(); ctx.arc(cx, cy, u * 1.25, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * fade) + ')'; ctx.lineWidth = Math.max(2, u * 0.04);
+      [-20, 0, 20].forEach(function(d){ var r = d * rad; ctx.beginPath(); ctx.moveTo(cx + Math.sin(r) * u * 0.95, cy - Math.cos(r) * u * 0.95); ctx.lineTo(cx + Math.sin(r) * u * 1.12, cy - Math.cos(r) * u * 1.12); ctx.stroke(); });
+      ctx.strokeStyle = 'rgba(255,255,255,' + fade + ')'; ctx.lineWidth = Math.max(4, u * 0.1);
+      ctx.beginPath(); ctx.moveTo(cx, cy - u * 0.1); ctx.lineTo(cx + Math.sin(ang) * u * 0.9, cy - Math.cos(ang) * u * 0.9); ctx.stroke();
+    }
+  }
+  function finish(aborted){
+    if (!run) return;
+    var r = run; run = null;
+    var elapsed = r.t0 === null ? 0 : Math.min(r.dur, (performance.now() - r.t0) / 1000);
+    stim.hidden = true;
+    try { if (document.fullscreenElement) document.exitFullscreen().catch(function(){}); } catch(e){}
+    try { if (wake) { wake.release().catch(function(){}); wake = null; } } catch(e){}
+    if (!aborted && cfg.sound) { tone(523.25); setTimeout(function(){ tone(659.25); }, 180); }
+    pending = { ts:Date.now(), kind:r.kind, dir:cfg.dir, speed:cfg.speed, freq:cfg.freq, secs:Math.round(elapsed), pre:r.pre, aborted:aborted };
+    $('post-kind').textContent = r.kind === 'prueba' ? 'la prueba' : 'el bloque';
+    $('post').value = r.pre; $('post-out').textContent = r.pre.toFixed(1);
+    $('post-panel').hidden = false; $('advice').hidden = true; syncGate();
+    $('post').focus();
+  }
+  stim.addEventListener('pointerdown', function(e){ e.preventDefault(); finish(true); });
+  window.addEventListener('keydown', function(e){
+    if (!run) return;
+    e.preventDefault();
+    if (e.repeat || run.t0 === null || performance.now() - run.t0 < 600) return; // la tecla que inició el bloque no lo detiene
+    finish(true);
+  });
+  document.addEventListener('fullscreenchange', function(){ if (run && run.fs && !document.fullscreenElement) finish(true); else if (run) sizeCanvas(); });
+  window.addEventListener('resize', function(){ if (run) sizeCanvas(); });
+  document.addEventListener('visibilitychange', function(){ if (run && document.hidden) finish(true); });
+  $('start-test').addEventListener('click', function(){ start('prueba'); });
+  $('start-block').addEventListener('click', function(){ start('bloque'); });
+
+  /* ---------- resultado ---------- */
+  function advise(e){
+    var d = e.post - e.pre, el = $('advice'), txt, alert = false;
+    if (d >= 2) { alert = true; txt = 'El balanceo subió ' + d.toFixed(1) + ' puntos. Suspenda por hoy. Si fue la prueba de 30 segundos, la próxima vez pruebe la dirección contraria; si fue un bloque, consulte a su médico antes de continuar.'; }
+    else if (e.kind === 'prueba') { txt = d < 0 ? 'Bajó ' + (-d).toFixed(1) + ' puntos: esta dirección (' + DIR_NAME[e.dir] + ') es candidata. Puede iniciar el primer bloque.' : 'Sin mejoría con franjas hacia ' + DIR_NAME[e.dir] + '. Invierta la dirección y repita la prueba cuando se sienta estable.'; }
+    else if (e.aborted) { txt = 'Bloque interrumpido a los ' + e.secs + ' segundos. Descanse; si se detuvo por malestar, no continúe hoy.'; }
+    else { txt = (d < 0 ? 'Bajó ' + (-d).toFixed(1) + ' puntos. ' : 'Sin cambio medible. ') + 'Descanse sentada unos minutos antes del siguiente bloque. Son 2 bloques por sesión.'; }
+    el.textContent = txt; el.className = 'msg' + (alert ? ' alert' : ''); el.hidden = false;
+  }
+  $('save').addEventListener('click', function(){
+    if (!pending) return;
+    var e = pending; pending = null; e.post = parseFloat($('post').value);
+    log.push(e); persist(); renderLog(); advise(e);
+    $('post-panel').hidden = true; $('pre').value = e.post; $('pre-out').textContent = e.post.toFixed(1); syncGate();
+  });
+  $('discard').addEventListener('click', function(){ pending = null; $('post-panel').hidden = true; syncGate(); });
+
+  /* ---------- registro ---------- */
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function stamp(ts){ var d = new Date(ts); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function dur(s){ return Math.floor(s / 60) + ':' + pad(s % 60); }
+  function renderLog(){
+    var tb = $('log').querySelector('tbody'); tb.textContent = '';
+    if (!log.length) { var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 9; td0.className = 'hint'; td0.textContent = 'Aún no hay bloques. Aquí aparecerá cada prueba y cada bloque con su calificación antes y después.'; tr0.appendChild(td0); tb.appendChild(tr0); }
+    log.slice().reverse().forEach(function(e){
+      var tr = document.createElement('tr'), d = e.post - e.pre;
+      var cells = [stamp(e.ts), (e.kind === 'prueba' ? 'Prueba' : 'Bloque') + (e.aborted ? ' (interrumpido)' : ''), DIR_NAME[e.dir] || e.dir, e.speed, Number(e.freq).toFixed(3), dur(e.secs), e.pre.toFixed(1), e.post.toFixed(1), (d > 0 ? '+' : '') + d.toFixed(1)];
+      cells.forEach(function(c, i){ var td = document.createElement('td'); td.textContent = c; if (i >= 3) td.className = 'num'; tr.appendChild(td); });
+      tb.appendChild(tr);
+    });
+    var today = new Date().toDateString(), n = log.filter(function(e){ return e.kind === 'bloque' && !e.aborted && new Date(e.ts).toDateString() === today; }).length;
+    $('today').textContent = 'Hoy: ' + n + ' de 4 bloques';
+  }
+  function csv(){
+    var rows = [['fecha_hora','tipo','interrumpido','direccion','grados_por_segundo','hz','segundos','antes','despues','cambio']];
+    log.forEach(function(e){ rows.push([stamp(e.ts), e.kind, e.aborted ? 'si' : 'no', DIR_NAME[e.dir] || e.dir, e.speed, Number(e.freq).toFixed(3), e.secs, e.pre, e.post, (e.post - e.pre).toFixed(1)]); });
+    return rows.map(function(r){ return r.join(','); }).join('\n');
+  }
+  $('copy').addEventListener('click', function(){
+    var text = csv(), ta = $('csv'), msg = $('log-msg');
+    var fallback = function(){ ta.value = text; ta.hidden = false; ta.focus(); ta.select(); msg.textContent = 'Seleccionado abajo: cópielo con Ctrl+C o Cmd+C.'; };
+    try { navigator.clipboard.writeText(text).then(function(){ msg.textContent = 'Copiado: ' + log.length + ' registros.'; }, fallback); } catch(e){ fallback(); }
+  });
+  var armed = false;
+  $('clear').addEventListener('click', function(){
+    var b = $('clear');
+    if (!armed) { armed = true; b.textContent = 'Confirmar: borrar todo'; setTimeout(function(){ armed = false; b.textContent = 'Borrar registro'; }, 5000); return; }
+    armed = false; b.textContent = 'Borrar registro'; log = []; persist(); renderLog(); $('log-msg').textContent = 'Registro borrado.';
+  });
+
+  fillForm(); renderGeo(); renderLog(); syncGate();
+})();
+</script>
+</body>
+</html>
